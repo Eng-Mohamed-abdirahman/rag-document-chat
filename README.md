@@ -61,5 +61,5 @@ Documents are automatically:
 ### **3️⃣ Start Chatting**
 Choose a document and ask any question — the system retrieves relevant chunks and generates smart AI responses using RAG.
 
----
+
 
