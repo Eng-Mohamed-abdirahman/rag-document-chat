@@ -25,9 +25,9 @@ export async function processDocuments(file: File) : Promise<{content : string ,
   }
   
   // Break the content into smaller pieces (chunks) for better AI processing
-//   const chunks = await createChunks(content, file.name);
+  const chunks = await createChunks(content, file.name);
   
-  return { content , chunks : [] };
+  return { content , chunks };
    
 }
 
@@ -81,3 +81,31 @@ async function processPDF(file: File): Promise<string> {
 }
 
 
+async function createChunks(content: string, filename: string): Promise<string[]> {
+  let cleanContent = content.trim().replace(/  +/g, ' ');
+  
+  const { RecursiveCharacterTextSplitter } = await import('@langchain/textsplitters');
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize: 2000,        // Larger chunks for better context
+    chunkOverlap: 400,      // More overlap for continuity
+    separators: [           // Better separators for any document type
+      '\n\n\n',            // Paragraph breaks
+      '\n\n',              // Double line breaks  
+      '\n',                // Single line breaks
+      '. ',                // Sentence endings
+      ' ',                 // Word boundaries
+      ''                   // Character level (last resort)
+    ],
+  });
+  
+  const rawChunks = await splitter.splitText(cleanContent);
+  return rawChunks.map(chunk => addContext(chunk, filename));
+}
+
+/**
+ * Add document context to chunks for better retrieval
+ */
+function addContext(chunk: string, filename: string): string {
+  const docName = filename.replace(/\.[^/.]+$/, ''); // Remove extension
+  return `Document: ${docName}\n\n${chunk}`;
+}
