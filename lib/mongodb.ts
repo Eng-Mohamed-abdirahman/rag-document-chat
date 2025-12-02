@@ -99,3 +99,5 @@ export async function getMessages(conversationId: string): Promise<any[]> {
     await connectToDB();
     return await Message.find({ conversationId }).sort({ createdAt: 1 });
 }
+
+

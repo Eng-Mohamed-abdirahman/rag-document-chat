@@ -1,0 +1,83 @@
+export async function processDocuments(file: File) : Promise<{content : string , chunks : string[]}>{
+   // Get the file extension (pdf, docx, txt, etc.)
+  // Example: "document.pdf" becomes "pdf"
+  const fileType = file.name.split('.').pop()?.toLowerCase();
+  
+  let content = '';
+  
+  // Choose the right processing method based on file type
+  switch (fileType) {
+    case 'pdf':
+      console.log('Processing PDF file:', file.name);
+      content = await processPDF(file);
+      break;
+    case 'docx':
+      console.log('Processing DOCX file:', file.name);
+    //   content = await processDOCX(file);
+      break;
+    case 'txt':
+    case 'md':
+      console.log('Processing text file:', file.name);
+    //   content = await processText(file);
+      break;
+    default:
+      throw new Error(`Unsupported file type: ${fileType}`);
+  }
+  
+  // Break the content into smaller pieces (chunks) for better AI processing
+//   const chunks = await createChunks(content, file.name);
+  
+  return { content , chunks : [] };
+   
+}
+
+async function processPDF(file: File): Promise<string> {
+  try {
+    console.log('Processing PDF with LangChain:', file.name, 'Size:', file.size);
+    
+    // Dynamic import of LangChain PDF loader (community package)
+    const { PDFLoader } = await import('@langchain/community/document_loaders/fs/pdf');
+    
+    // Convert File to Blob for LangChain
+    const blob = new Blob([await file.arrayBuffer()], { type: 'application/pdf' });
+    
+    // Create PDF loader with blob
+    const loader = new PDFLoader(blob);
+    
+    // Load and parse the PDF
+    const docs = await loader.load();
+    console.log('PDF loaded. Number of pages:', docs.length);
+    
+    // Combine all pages into single text
+    let fullText = '';
+    docs.forEach((doc, index) => {
+      if (doc.pageContent.trim()) {
+        fullText += `\n\nPage ${index + 1}:\n${doc.pageContent.trim()}`;
+      }
+    });
+    
+    if (!fullText.trim()) {
+      return `No text content could be extracted from ${file.name}. The PDF might be image-based or encrypted.`;
+    }
+    
+    console.log('PDF processing complete. Text length:', fullText.length);
+    return fullText.trim();
+    
+  } catch (error) {
+    console.error('PDF processing error:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Invalid PDF') || error.message.includes('PDF')) {
+        throw new Error(`The uploaded file is not a valid PDF or is corrupted.`);
+      } else if (error.message.includes('password')) {
+        throw new Error(`The PDF is password protected. Please upload an unprotected PDF.`);
+      } else {
+        throw new Error(`PDF processing failed: ${error.message}`);
+      }
+    }
+    
+    throw new Error(`PDF processing failed: Unknown error occurred`);
+  }
+}
+
+
