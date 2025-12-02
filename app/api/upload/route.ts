@@ -1,4 +1,6 @@
-import { createDocument } from "@/lib/mongodb";
+import { generateEmbeddings } from "@/lib/ai/embedding";
+import { processDocuments } from "@/lib/document-processor";
+import { createDocument, updateDocument } from "@/lib/mongodb";
 import { NextResponse, NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -36,7 +38,21 @@ export async function POST(request: NextRequest) {
             status: 'processing',
         });
         // 4. process the document (exract the text and create chunks)
+         const { content, chunks } = await processDocuments(file);
+         if (chunks.length === 0) {
+      // Update document status to error
+      await updateDocument(documentId, {
+        status: 'error',
+        errorMessage: 'No content could be extracted from the file.'
+      });
+      
+      return NextResponse.json(
+        { error: 'No content could be extracted from the file.' },
+        { status: 400 }
+      );
+    }
         // 5. create embeddings for each chunk 
+        const embeddings = await generateEmbeddings(chunks);
         // 6. store them in the vector database
         // 7. update document in mongodb 
         // 8. return a success response
