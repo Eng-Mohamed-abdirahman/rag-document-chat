@@ -112,3 +112,22 @@ export async function storeVectors(
     throw new Error('Failed to store vectors in Pinecone');
   }
 }
+
+/**
+ * Delete all vectors for a document
+ */
+export async function deleteDocumentVectors(documentId: string): Promise<void> {
+  try {
+    const index = getPineconeIndex();
+    
+    // Delete all vectors with the document ID filter (simple key-value format)
+    await index.deleteMany({
+      documentId: documentId
+    });
+
+    console.log(`Deleted vectors for document ${documentId}`);
+  } catch (error) {
+    console.error('Error deleting vectors:', error);
+    throw new Error('Failed to delete vectors from Pinecone');
+  }
+}
