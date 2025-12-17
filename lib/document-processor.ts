@@ -1,5 +1,13 @@
-export async function processDocuments(file: File) : Promise<{content : string , chunks : string[]}>{
-   // Get the file extension (pdf, docx, txt, etc.)
+// Document processing using LangChain loaders (much more reliable)
+
+/**
+ * Process different document types and extract text content
+ * This is the main function that decides how to handle each file type
+ */
+export async function processDocument(
+  file: File
+): Promise<{ content: string; chunks: string[] }> {
+  // Get the file extension (pdf, docx, txt, etc.)
   // Example: "document.pdf" becomes "pdf"
   const fileType = file.name.split('.').pop()?.toLowerCase();
   
@@ -13,12 +21,12 @@ export async function processDocuments(file: File) : Promise<{content : string ,
       break;
     case 'docx':
       console.log('Processing DOCX file:', file.name);
-    //   content = await processDOCX(file);
+      content = await processDOCX(file);
       break;
     case 'txt':
     case 'md':
       console.log('Processing text file:', file.name);
-    //   content = await processText(file);
+      content = await processText(file);
       break;
     default:
       throw new Error(`Unsupported file type: ${fileType}`);
@@ -27,10 +35,12 @@ export async function processDocuments(file: File) : Promise<{content : string ,
   // Break the content into smaller pieces (chunks) for better AI processing
   const chunks = await createChunks(content, file.name);
   
-  return { content , chunks };
-   
+  return { content, chunks };
 }
 
+/**
+ * Process PDF files using LangChain PDF loader (much more reliable)
+ */
 async function processPDF(file: File): Promise<string> {
   try {
     console.log('Processing PDF with LangChain:', file.name, 'Size:', file.size);
@@ -80,7 +90,58 @@ async function processPDF(file: File): Promise<string> {
   }
 }
 
+/**
+ * Process DOCX files using LangChain DOCX loader
+ */
+async function processDOCX(file: File): Promise<string> {
+  try {
+    console.log('Processing DOCX with LangChain:', file.name, 'Size:', file.size);
+    
+    // Dynamic import of LangChain DOCX loader (community package)
+    const { DocxLoader } = await import('@langchain/community/document_loaders/fs/docx');
+    
+    // Convert File to Blob for LangChain
+    const blob = new Blob([await file.arrayBuffer()], { 
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+    });
+    
+    // Create DOCX loader
+    const loader = new DocxLoader(blob);
+    
+    // Load and parse the DOCX
+    const docs = await loader.load();
+    console.log('DOCX loaded. Number of sections:', docs.length);
+    
+    // Combine all sections into single text
+    const fullText = docs.map(doc => doc.pageContent).join('\n\n');
+    
+    if (!fullText.trim()) {
+      throw new Error('No text content could be extracted from the DOCX file.');
+    }
+    
+    console.log('DOCX processing complete. Text length:', fullText.length);
+    return fullText.trim();
+    
+  } catch (error) {
+    console.error('DOCX processing error:', error);
+    if (error instanceof Error) {
+      throw new Error(`DOCX processing failed: ${error.message}`);
+    }
+    throw new Error('DOCX processing failed: Unknown error occurred');
+  }
+}
 
+/**
+ * Process plain text files
+ */
+async function processText(file: File): Promise<string> {
+  return await file.text();
+}
+
+/**
+ * Break document content into smaller pieces (chunks)
+ * Simple but better chunking with more context awareness
+ */
 async function createChunks(content: string, filename: string): Promise<string[]> {
   let cleanContent = content.trim().replace(/  +/g, ' ');
   
@@ -108,4 +169,24 @@ async function createChunks(content: string, filename: string): Promise<string[]
 function addContext(chunk: string, filename: string): string {
   const docName = filename.replace(/\.[^/.]+$/, ''); // Remove extension
   return `Document: ${docName}\n\n${chunk}`;
+}
+
+/**
+ * Get supported file types
+ */
+export const SUPPORTED_FILE_TYPES = {
+  'application/pdf': 'pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'text/plain': 'txt',
+  'text/markdown': 'md',
+} as const;
+
+/**
+ * Validate if file type is supported
+ */
+export function isFileTypeSupported(file: File): boolean {
+  return file.type in SUPPORTED_FILE_TYPES || 
+         ['pdf', 'docx', 'txt', 'md'].includes(
+           file.name.split('.').pop()?.toLowerCase() || ''
+         );
 }
